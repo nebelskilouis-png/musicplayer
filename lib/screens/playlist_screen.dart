@@ -405,6 +405,26 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
             SheetHeader(
                 coverPath: CoverService.instance.pathFor(t) ?? _coverPath, title: t.title, subtitle: t.artist),
             const Divider(height: 1),
+            Builder(builder: (_) {
+              final fav = AppSettings.instance.isFavorite(t.id);
+              return SheetItem(
+                icon: fav ? Icons.favorite : Icons.favorite_border,
+                label: fav ? 'Kein Lieblingssong mehr' : 'Als Lieblingssong markieren',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (t.id == null) return;
+                  HapticFeedback.lightImpact();
+                  final now = AppSettings.instance.toggleFavorite(t.id!);
+                  setState(() {});
+                  final w = AppSettings.instance.favoriteWeight.value;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(now
+                        ? (w > 1 ? '♥ Lieblingssong – kommt im Shuffle ${w}x vor' : '♥ Lieblingssong')
+                        : 'Kein Lieblingssong mehr'),
+                  ));
+                },
+              );
+            }),
             SheetItem(
               icon: Icons.low_priority,
               label: 'Hier weitermachen (nach aktuellem Song)',
@@ -804,6 +824,11 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                         const Padding(
                           padding: EdgeInsets.only(right: 4),
                           child: Icon(Icons.graphic_eq, size: 14, color: AppColors.accentLight),
+                        ),
+                      if (st.isFavorite(t.id))
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: Icon(Icons.favorite, size: 13, color: AppColors.accentLight),
                         ),
                       Expanded(
                         child: Text(t.artist,

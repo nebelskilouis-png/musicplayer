@@ -44,6 +44,20 @@ class SettingsScreen extends StatelessWidget {
               notifier: st.playlistWrap,
             ),
             _ChoiceTile(
+              title: 'Lieblingssongs im Shuffle',
+              notifier: st.favoriteWeight,
+              options: const [1, 2, 3],
+              format: (v) => v == 1 ? 'Normal (1x)' : '${v}x so oft',
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                'Lieblingssong: Song gedrückt halten → „Als Lieblingssong markieren“. '
+                'Die Wiederholungen sind über die Warteschlange verteilt, nie direkt hintereinander.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+            ),
+            _ChoiceTile(
               title: 'Zurück-Taste startet Song neu nach',
               notifier: st.restartThreshold,
               options: const [2, 3, 4, 5, 10],

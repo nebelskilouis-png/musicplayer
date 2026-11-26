@@ -22,6 +22,10 @@ class AppSettings {
   final newSongsPosition = ValueNotifier<int>(0);
   final onlineLyrics = ValueNotifier<bool>(true); // Lyrics bei lrclib.net suchen
   final carCoverBackground = ValueNotifier<bool>(true); // Auto-Modus: Song-Cover hinter Play-Button
+  /// Lieblingssongs (Track-IDs, kommagetrennt). Gilt in allen Playlists.
+  final favoriteIds = ValueNotifier<String>('');
+  /// Wie oft ein Lieblingssong im Shuffle vorkommt (1 = normal, 2, 3)
+  final favoriteWeight = ValueNotifier<int>(2);
 
   // ---------- Kopfhörer-Steuerung (Ski-Modus) ----------
   /// Funktion überhaupt anbieten (Schalter im Player sichtbar)?
@@ -79,11 +83,13 @@ class AppSettings {
     'headset_play2': headsetPlay2,
     'headset_play3': headsetPlay3,
     'headset_window_ms': headsetWindowMs,
+    'favorite_weight': favoriteWeight,
   };
 
   late final Map<String, ValueNotifier<String>> _strings = {
     'sleep_presets': sleepPresets,
     'book_speed_recent': bookSpeedRecent,
+    'favorite_ids': favoriteIds,
   };
 
   /// Feuert bei jeder Änderung irgendeiner Einstellung.
@@ -110,6 +116,29 @@ class AppSettings {
       .where((v) => v >= 50 && v <= 300)
       .take(3)
       .toList();
+
+  // ---------- Lieblingssongs ----------
+  Set<int>? _favCache;
+  String? _favCacheSrc;
+
+  Set<int> get favorites {
+    if (_favCache == null || _favCacheSrc != favoriteIds.value) {
+      _favCacheSrc = favoriteIds.value;
+      _favCache = favoriteIds.value.split(',').map((s) => int.tryParse(s.trim())).whereType<int>().toSet();
+    }
+    return _favCache!;
+  }
+
+  bool isFavorite(int? trackId) => trackId != null && favorites.contains(trackId);
+
+  /// Umschalten. Gibt den neuen Zustand zurück.
+  bool toggleFavorite(int trackId) {
+    final s = Set<int>.of(favorites);
+    final now = !s.remove(trackId);
+    if (now) s.add(trackId);
+    setString(favoriteIds, s.join(','));
+    return now;
+  }
 
   Future<void> load() async {
     final m = await DatabaseHelper.instance.getSettings();

@@ -162,9 +162,36 @@ class AudioPlayerService {
   }
 
   List<Track> _shuffledWith(Track first) {
+    final rnd = Random();
+    final st = AppSettings.instance;
+    final w = st.favoriteWeight.value.clamp(1, 3);
     final rest = List.of(_original)..remove(first);
-    rest.shuffle(Random());
-    return [first, ...rest];
+    if (w <= 1 || st.favorites.isEmpty) {
+      rest.shuffle(rnd);
+      return [first, ...rest];
+    }
+    // Jeder Song bekommt einen Zufallswert 0..1 als Platz in der Warteschlange.
+    // Lieblingssongs kommen w-mal vor: je ein Platz pro Abschnitt (1/w der Liste),
+    // mit Rand, damit die Kopien nie direkt hintereinander kommen.
+    double slot(int j) => (j + 0.15 + 0.7 * rnd.nextDouble()) / w;
+    final keyed = <(double, Track)>[];
+    for (final t in rest) {
+      if (st.isFavorite(t.id)) {
+        for (var j = 0; j < w; j++) {
+          keyed.add((slot(j), t));
+        }
+      } else {
+        keyed.add((rnd.nextDouble(), t));
+      }
+    }
+    // Startsong ist Lieblingssong: er läuft jetzt (= Kopie 1), weitere Kopien später
+    if (st.isFavorite(first.id)) {
+      for (var j = 1; j < w; j++) {
+        keyed.add((slot(j), first));
+      }
+    }
+    keyed.sort((a, b) => a.$1.compareTo(b.$1));
+    return [first, for (final k in keyed) k.$2];
   }
 
   Future<void> _playAt(int i, {bool autoplay = true, Duration? position}) async {

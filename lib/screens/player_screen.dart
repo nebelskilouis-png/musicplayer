@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import '../services/audio_player_service.dart';
 import '../services/cover_service.dart';
+import '../services/settings_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/output_indicator.dart';
@@ -124,6 +126,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 ],
                               ),
                             ),
+                            if (track.id != null)
+                              ValueListenableBuilder<String>(
+                                valueListenable: AppSettings.instance.favoriteIds,
+                                builder: (context, _, __) {
+                                  final fav = AppSettings.instance.isFavorite(track.id);
+                                  return IconButton(
+                                    tooltip: fav ? 'Kein Lieblingssong mehr' : 'Als Lieblingssong markieren',
+                                    iconSize: 28,
+                                    icon: Icon(fav ? Icons.favorite : Icons.favorite_border,
+                                        color: fav ? AppColors.accentLight : AppColors.textSecondary),
+                                    onPressed: () {
+                                      HapticFeedback.lightImpact();
+                                      AppSettings.instance.toggleFavorite(track.id!);
+                                    },
+                                  );
+                                },
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
