@@ -38,7 +38,7 @@ jobs:
       - run: flutter pub get
 
       - name: APK bauen
-        run: flutter build apk --release --build-number=$((1000 + ${{ github.run_number }}))
+        run: flutter build apk --release --build-number=$(( $(date +%s) / 60 ))
 
       - name: Release veröffentlichen
         uses: softprops/action-gh-release@v2
