@@ -13,6 +13,7 @@ import '../services/playlist_sort.dart';
 import '../services/permissions.dart';
 import 'package:permission_handler/permission_handler.dart' show openAppSettings;
 import 'file_browser_screen.dart';
+import 'pick_from_playlist_screen.dart';
 import '../services/settings_service.dart';
 import '../theme.dart';
 import '../widgets/add_to_playlist.dart';
@@ -208,6 +209,34 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  /// Songs aus einer anderen Playlist übernehmen (nur Playlists ohne Ordner).
+  Future<void> _addFromPlaylist() async {
+    final picked = await pickSongsFromPlaylist(context, targetPlaylistId: widget.playlistId);
+    if (picked == null || picked.trackIds.isEmpty || !mounted) return;
+    final mode = AppSettings.instance.newSongsPosition.value;
+    final atTop = mode != 1;
+    final db = DatabaseHelper.instance;
+    final firstBefore = _tracksData.isEmpty ? null : _tracksData.first;
+    final added = await db.addTracksToPlaylistBulk(widget.playlistId, picked.trackIds,
+        atTop: atTop, sections: picked.sections.isEmpty ? null : picked.sections);
+    if (added.isNotEmpty && mode == 2) await MusicScanner.placeByName(widget.playlistId, added);
+    // Oben eingefügte Abschnitte würden sonst die bisherigen Songs ohne Abschnitt "schlucken"
+    if (added.isNotEmpty && atTop && mode == 0 && picked.sections.isNotEmpty && firstBefore != null) {
+      final oldSec = ((firstBefore['section_name'] as String?) ?? '').trim();
+      if (oldSec.isEmpty) await db.updateSectionName(widget.playlistId, firstBefore['id'] as int, 'Bisher');
+    }
+    MusicScanner.libraryChanged.value++;
+    await _load();
+    if (!mounted) return;
+    if (added.isNotEmpty && atTop && _itemScroll.isAttached) _itemScroll.jumpTo(index: 0);
+    final n = added.length;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(n == 0
+          ? 'Die Songs sind schon in der Playlist'
+          : '$n ${n == 1 ? 'Song' : 'Songs'} hinzugefügt'),
+    ));
+  }
+
   Future<void> _rescanFolder() async {
     if (!_hasFolder) return;
     setState(() => _isScanning = true);
@@ -352,6 +381,15 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 _addMp3s();
+              },
+            ),
+            if (!_hasFolder)
+            SheetItem(
+              icon: Icons.playlist_add,
+              label: 'Songs aus anderer Playlist hinzufügen',
+              onTap: () {
+                Navigator.pop(ctx);
+                _addFromPlaylist();
               },
             ),
             SheetItem(
@@ -518,7 +556,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                           child: Text(
                               _hasFolder
                                   ? 'Keine Songs. Tippe auf  ⟳  um den Ordner zu scannen.'
-                                  : 'Noch leer. Füge Songs über ⋮ → „Zu Playlist hinzufügen“ hinzu – in einer anderen Playlist oder in der Suche.',
+                                  : 'Noch leer. Tippe oben auf  ☰+  um Songs aus einer anderen Playlist zu übernehmen.',
                               textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
                         ),
                       );
@@ -711,6 +749,12 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
           tooltip: 'MP3s hinzufügen',
           icon: const Icon(Icons.library_add_outlined, color: AppColors.textSecondary),
           onPressed: _isScanning ? null : _addMp3s,
+        ),
+        if (!_hasFolder)
+        IconButton(
+          tooltip: 'Aus anderer Playlist hinzufügen',
+          icon: const Icon(Icons.playlist_add, color: AppColors.textSecondary),
+          onPressed: _isScanning ? null : _addFromPlaylist,
         ),
         IconButton(
           tooltip: 'Einmalig sortieren',

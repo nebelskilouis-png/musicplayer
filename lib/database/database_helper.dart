@@ -356,6 +356,48 @@ class DatabaseHelper {
     return true;
   }
 
+  /// Mehrere Songs auf einmal in eine Playlist (in der angegebenen Reihenfolge), oben oder unten.
+  /// Songs, die schon drin sind, werden übersprungen. sections: optionaler Abschnittsname je Song.
+  /// Gibt die IDs der wirklich hinzugefügten Songs zurück.
+  Future<List<int>> addTracksToPlaylistBulk(int playlistId, List<int> trackIds,
+      {required bool atTop, Map<int, String>? sections}) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final existing = (await txn.query('playlist_tracks',
+              columns: ['track_id'], where: 'playlist_id = ?', whereArgs: [playlistId]))
+          .map((r) => r['track_id'] as int)
+          .toSet();
+      final add = <int>[];
+      for (final id in trackIds) {
+        if (!existing.contains(id) && !add.contains(id)) add.add(id);
+      }
+      if (add.isEmpty) return add;
+      int start;
+      if (atTop) {
+        await txn.rawUpdate(
+            'UPDATE playlist_tracks SET position = position + ? WHERE playlist_id = ?', [add.length, playlistId]);
+        start = 0;
+      } else {
+        final r = await txn.rawQuery(
+            'SELECT MAX(position) AS m FROM playlist_tracks WHERE playlist_id = ?', [playlistId]);
+        start = ((r.first['m'] as int?) ?? -1) + 1;
+      }
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final batch = txn.batch();
+      for (int i = 0; i < add.length; i++) {
+        batch.insert('playlist_tracks', {
+          'playlist_id': playlistId,
+          'track_id': add[i],
+          'position': start + i,
+          'added_at': now - i, // Reihenfolge bleibt auch bei "Zuletzt hinzugefügt" erhalten
+          'section_name': sections?[add[i]],
+        });
+      }
+      await batch.commit(noResult: true);
+      return add;
+    });
+  }
+
   Future<void> updateSectionName(int playlistId, int trackId, String? sectionName) async {
     final db = await database;
     await db.update(

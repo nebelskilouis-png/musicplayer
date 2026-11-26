@@ -343,11 +343,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
         const HeadsetModeToggle(),
         const Spacer(),
-        IconButton(
-          tooltip: 'Lyrics',
-          icon: const Icon(Icons.notes, color: Colors.white70),
-          onPressed: () => openLyrics(context),
-        ),
         ListenableBuilder(
           listenable: Listenable.merge([s.sleepUntil, s.sleepAtTrackEnd]),
           builder: (context, _) => IconButton(
