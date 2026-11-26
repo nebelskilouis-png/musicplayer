@@ -1,0 +1,50 @@
+name: APK bauen
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Flutter-Version lesen
+        id: fv
+        run: echo "v=$(cat .github/flutter_version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.fv.outputs.v }}
+          channel: stable
+          cache: true
+
+      - name: Signatur-Schlüssel
+        env:
+          KS: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          if [ -n "$KS" ]; then echo "$KS" | base64 -d > android/app/ci-debug.keystore; fi
+
+      - run: flutter pub get
+
+      - name: APK bauen
+        run: flutter build apk --release --build-number=$((1000 + ${{ github.run_number }}))
+
+      - name: Release veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          body: ${{ github.event.head_commit.message }}
+          make_latest: true
+          files: build/app/outputs/flutter-apk/app-release.apk
