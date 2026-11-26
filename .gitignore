@@ -53,3 +53,4 @@ build_log.txt
 *.apk
 *.keystore
 *.jks
+.commit_msg
