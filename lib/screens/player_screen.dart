@@ -342,6 +342,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
           onPressed: () => openCarMode(context),
         ),
         const HeadsetModeToggle(),
+        ListenableBuilder(
+          listenable: Listenable.merge([AppSettings.instance.musicSpeedFeature, AppSettings.instance.musicSpeedPct]),
+          builder: (context, _) {
+            final st = AppSettings.instance;
+            if (!st.musicSpeedFeature.value) return const SizedBox.shrink();
+            final pct = st.musicSpeedPct.value;
+            return pct == 100
+                ? IconButton(
+                    tooltip: 'Tempo',
+                    icon: const Icon(Icons.speed, color: Colors.white70),
+                    onPressed: () => showMusicSpeedSheet(context),
+                  )
+                : TextButton(
+                    onPressed: () => showMusicSpeedSheet(context),
+                    child: Text(formatSpeed(pct),
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.accentLight)),
+                  );
+          },
+        ),
         const Spacer(),
         ListenableBuilder(
           listenable: Listenable.merge([s.sleepUntil, s.sleepAtTrackEnd]),
@@ -664,4 +684,110 @@ class _SwipeCoverState extends State<_SwipeCover> with SingleTickerProviderState
       );
     });
   }
+}
+
+
+/// Musik-Tempo: Regler + feste Schnellwahl (in den Einstellungen änderbar).
+void showMusicSpeedSheet(BuildContext context) {
+  final s = AudioPlayerService.instance;
+  final st = AppSettings.instance;
+  int value = st.musicSpeedPct.value;
+  showModalBottomSheet(
+    context: context,
+    useRootNavigator: true,
+    builder: (ctx) => SafeArea(
+      child: StatefulBuilder(
+        builder: (ctx, setSheet) {
+          void apply(int v, {bool save = true}) {
+            setSheet(() => value = v.clamp(50, 300));
+            s.setMusicSpeed(value, save: save);
+          }
+
+          final presets = st.musicSpeedPresetList;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Tempo', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Text(formatSpeed(value),
+                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: AppColors.accentLight)),
+                Row(
+                  children: [
+                    IconButton(
+                      iconSize: 32,
+                      icon: const Icon(Icons.remove_circle_outline, color: Colors.white),
+                      onPressed: () => apply(value - 5),
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(ctx).copyWith(
+                          trackHeight: 6,
+                          activeTrackColor: AppColors.accentLight,
+                          inactiveTrackColor: Colors.white24,
+                          thumbColor: Colors.white,
+                          overlayColor: Colors.white24,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 11),
+                        ),
+                        child: Slider(
+                          value: value.toDouble(),
+                          min: 50,
+                          max: 300,
+                          divisions: 50, // Schritte von 0,05x
+                          onChanged: (v) => apply(v.round(), save: false),
+                          onChangeEnd: (v) => apply(v.round()),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      iconSize: 32,
+                      icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                      onPressed: () => apply(value + 5),
+                    ),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 48),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('0,5x', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                      Text('3,0x', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    for (final p in presets)
+                      Material(
+                        color: p == value ? AppColors.accent : const Color(0xFF3A3A3A),
+                        shape: const StadiumBorder(),
+                        child: InkWell(
+                          customBorder: const StadiumBorder(),
+                          onTap: () => apply(p),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                            child: Text(formatSpeed(p),
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                if (value != 100) ...[
+                  const SizedBox(height: 8),
+                  TextButton(onPressed: () => apply(100), child: const Text('Zurück auf 1,0x')),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
 }

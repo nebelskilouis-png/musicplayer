@@ -79,6 +79,31 @@ class SettingsScreen extends StatelessWidget {
               notifier: st.carCoverBackground,
             ),
 
+            const _Header('Musik-Tempo'),
+            _SwitchTile(
+              title: 'Tempo-Regler anbieten',
+              subtitle: 'Zeigt im Player einen Tempo-Button. Aus = komplett ausgeblendet, Musik läuft mit 1,0x.',
+              notifier: st.musicSpeedFeature,
+            ),
+            if (st.musicSpeedFeature.value)
+              _ActionTile(
+                icon: Icons.edit_outlined,
+                title: 'Schnellwahl-Tempi anpassen',
+                subtitle: st.musicSpeedPresetList.map(formatSpeed).join('  '),
+                onTap: () async {
+                  final input = await showTextInputDialog(
+                    context,
+                    title: 'Schnellwahl-Tempi',
+                    initial: st.musicSpeedPresetList.map((p) => formatSpeed(p).replaceAll('x', '')).join('  '),
+                    hint: 'mit Leerzeichen trennen, z.B. 0,5  1  1,5  2',
+                  );
+                  if (input == null) return;
+                  final values = AppSettings.parseSpeedList(input);
+                  if (values.isEmpty) return;
+                  st.setString(st.musicSpeedPresets, values.take(10).join(','));
+                },
+              ),
+
             const _Header('Kopfhörer-Steuerung (Ski-Modus)'),
             _SwitchTile(
               title: 'Kopfhörer-Steuerung anbieten',

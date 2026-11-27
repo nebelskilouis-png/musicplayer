@@ -27,6 +27,12 @@ class AppSettings {
   /// Wie oft ein Lieblingssong im Shuffle vorkommt (1 = normal, 2, 3)
   final favoriteWeight = ValueNotifier<int>(2);
 
+  // Musik-Tempo
+  /// Tempo-Regler im Player anbieten (aus = komplett ausgeblendet, Musik läuft mit 1,0x)
+  final musicSpeedFeature = ValueNotifier<bool>(true);
+  final musicSpeedPct = ValueNotifier<int>(100); // 100 = 1,0x
+  final musicSpeedPresets = ValueNotifier<String>('50,75,100,125,150,200');
+
   // ---------- Kopfhörer-Steuerung (Ski-Modus) ----------
   /// Funktion überhaupt anbieten (Schalter im Player sichtbar)?
   final headsetFeature = ValueNotifier<bool>(false);
@@ -67,6 +73,7 @@ class AppSettings {
     'online_lyrics': onlineLyrics,
     'headset_feature': headsetFeature,
     'headset_mode_on': headsetModeOn,
+    'music_speed_feature': musicSpeedFeature,
   };
 
   late final Map<String, ValueNotifier<int>> _ints = {
@@ -84,12 +91,14 @@ class AppSettings {
     'headset_play3': headsetPlay3,
     'headset_window_ms': headsetWindowMs,
     'favorite_weight': favoriteWeight,
+    'music_speed_pct': musicSpeedPct,
   };
 
   late final Map<String, ValueNotifier<String>> _strings = {
     'sleep_presets': sleepPresets,
     'book_speed_recent': bookSpeedRecent,
     'favorite_ids': favoriteIds,
+    'music_speed_presets': musicSpeedPresets,
   };
 
   /// Feuert bei jeder Änderung irgendeiner Einstellung.
@@ -116,6 +125,30 @@ class AppSettings {
       .where((v) => v >= 50 && v <= 300)
       .take(3)
       .toList();
+
+  /// Schnellwahl-Tempi für Musik (Prozent, sortiert)
+  List<int> get musicSpeedPresetList => (musicSpeedPresets.value
+          .split(',')
+          .map((s) => int.tryParse(s.trim()))
+          .whereType<int>()
+          .where((v) => v >= 50 && v <= 300)
+          .toSet()
+          .toList()
+        ..sort());
+
+  /// Eingabe des Nutzers: "0,5  1  1,5  2" / "0.5, 1, 1.5" / "50 100 150" -> [50, 100, 150, 200]
+  static List<int> parseSpeedList(String input) {
+    final out = <int>{};
+    for (var raw in input.split(RegExp(r'[;\s]+|,(?=\s)|,(?!\d)'))) {
+      raw = raw.trim().toLowerCase().replaceAll('x', '').replaceAll(',', '.');
+      if (raw.isEmpty) continue;
+      final v = double.tryParse(raw);
+      if (v == null) continue;
+      final pct = v <= 5 ? (v * 100).round() : v.round();
+      if (pct >= 50 && pct <= 300) out.add(pct);
+    }
+    return out.toList()..sort();
+  }
 
   // ---------- Lieblingssongs ----------
   Set<int>? _favCache;

@@ -18,6 +18,8 @@ class AudioPlayerService {
   static final AudioPlayerService instance = AudioPlayerService._();
 
   AudioPlayerService._() {
+    // Tempo-Funktion ausgeschaltet -> sofort zurück auf 1,0x
+    AppSettings.instance.musicSpeedFeature.addListener(_applyMusicSpeed);
     player.processingStateStream.listen((state) {
       if (state != ProcessingState.completed) return;
       if (mode.value == PlayMode.music) {
@@ -194,6 +196,23 @@ class AudioPlayerService {
     return [first, for (final k in keyed) k.$2];
   }
 
+  /// Aktuelles Musik-Tempo (1,0 wenn die Funktion ausgeschaltet ist)
+  double get musicSpeed {
+    final st = AppSettings.instance;
+    return st.musicSpeedFeature.value ? st.musicSpeedPct.value / 100.0 : 1.0;
+  }
+
+  /// Tempo setzen. save=false: nur anhören (beim Ziehen am Regler).
+  Future<void> setMusicSpeed(int pct, {bool save = true}) async {
+    pct = pct.clamp(50, 300);
+    if (save) AppSettings.instance.setInt(AppSettings.instance.musicSpeedPct, pct);
+    if (mode.value == PlayMode.music && _musicLoaded) await player.setSpeed(pct / 100.0);
+  }
+
+  void _applyMusicSpeed() {
+    if (mode.value == PlayMode.music && _musicLoaded) player.setSpeed(musicSpeed);
+  }
+
   Future<void> _playAt(int i, {bool autoplay = true, Duration? position}) async {
     if (i < 0 || i >= currentQueue.length) return;
     await _activateMusic();
@@ -205,7 +224,7 @@ class AudioPlayerService {
       if (token != _loadToken) return; // inzwischen anderer Song gewählt
       _musicLoaded = true;
       _notify(); // UI (Play-Button) weiß jetzt, dass die Musik aktiv ist
-      await player.setSpeed(1.0);
+      await player.setSpeed(musicSpeed);
       await player.setVolume(userVolume);
       await player.setLoopMode(loopMode.value == LoopMode.one ? LoopMode.one : LoopMode.off);
       if (autoplay) player.play();
