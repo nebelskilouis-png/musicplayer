@@ -68,7 +68,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'Musik',
+        title: 'Kobalt',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         home: const AppShell(),

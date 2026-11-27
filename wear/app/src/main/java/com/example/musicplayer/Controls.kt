@@ -52,8 +52,8 @@ class Controls(
         val col = Ui.row(a, horizontal = false).apply {
             val side = Ui.dp(a, 26)
             setPadding(side, Ui.dp(a, 22), side, Ui.dp(a, 14))
-            addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            addView(artist, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(this@Controls.title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(this@Controls.artist, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(status)
             addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(a, 8)).apply {
                 setMargins(Ui.dp(a, 10), Ui.dp(a, 4), Ui.dp(a, 10), Ui.dp(a, 6))
@@ -69,7 +69,7 @@ class Controls(
                 addView(middle)
                 addView(Ui.textButton(a, "+", 40, 22f) { onVolUp() })
             })
-            addView(bottom)
+            addView(this@Controls.bottom)
         }
         addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
     }

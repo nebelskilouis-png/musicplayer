@@ -14,7 +14,7 @@ class MainActivity : Activity() {
             setBackgroundColor(Ui.BG)
             val h = resources.displayMetrics.heightPixels
             setPadding(0, h / 7, 0, h / 7)
-            addView(Ui.text(this@MainActivity, "Musik", 20f, Ui.LIGHT, bold = true).apply {
+            addView(Ui.text(this@MainActivity, "Kobalt", 20f, Ui.LIGHT, bold = true).apply {
                 setPadding(0, 0, 0, Ui.dp(this@MainActivity, 10))
             })
             addView(Ui.pill(this@MainActivity, "📱  Handy steuern", Ui.ACCENT) {
