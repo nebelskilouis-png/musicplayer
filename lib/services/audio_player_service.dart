@@ -209,6 +209,9 @@ class AudioPlayerService {
     if (mode.value == PlayMode.music && _musicLoaded) await player.setSpeed(pct / 100.0);
   }
 
+  /// Datei, für die das aktuelle Tempo gilt. Neuer Song -> Tempo zurück auf 1,0x.
+  String? _speedTrackPath;
+
   void _applyMusicSpeed() {
     if (mode.value == PlayMode.music && _musicLoaded) player.setSpeed(musicSpeed);
   }
@@ -224,6 +227,14 @@ class AudioPlayerService {
       if (token != _loadToken) return; // inzwischen anderer Song gewählt
       _musicLoaded = true;
       _notify(); // UI (Play-Button) weiß jetzt, dass die Musik aktiv ist
+      // Anderer Song (Ende erreicht oder neu angetippt) -> Tempo zurück auf 1,0x.
+      // Gleicher Song (z.B. Musik nach Hörbuch fortsetzen) behält sein Tempo.
+      final path = currentQueue[i].filePath;
+      if (path != _speedTrackPath) {
+        _speedTrackPath = path;
+        final st = AppSettings.instance;
+        if (st.musicSpeedPct.value != 100) st.setInt(st.musicSpeedPct, 100);
+      }
       await player.setSpeed(musicSpeed);
       await player.setVolume(userVolume);
       await player.setLoopMode(loopMode.value == LoopMode.one ? LoopMode.one : LoopMode.off);
