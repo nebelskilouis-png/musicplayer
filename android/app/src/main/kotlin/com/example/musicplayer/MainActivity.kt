@@ -16,6 +16,8 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Uhr-App (Wear OS)
+        WearBridge.attach(this, flutterEngine.dartExecutor.binaryMessenger)
         // Kanal für den Audio-Ausgang (Kopfhörer / Bluetooth / Lautsprecher)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "musicplayer/output")
             .setMethodCallHandler { call, result ->

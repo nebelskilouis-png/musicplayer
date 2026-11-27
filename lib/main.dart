@@ -16,7 +16,9 @@ import 'services/output_service.dart';
 import 'services/permissions.dart';
 import 'services/music_scanner.dart';
 import 'services/settings_service.dart';
+import 'services/watch_bridge.dart';
 import 'widgets/mini_player.dart';
+import 'widgets/watch_sync_banner.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +56,7 @@ Future<void> main() async {
   AudiobookService.instance; // startet Fortschritt-Speicherung + Schlaf-Timer
   AudioOutputService.instance.start(); // erkennt Kopfhörer / Lautsprecher
   AudioPlayerService.instance.restoreSession();
+  WatchBridge.instance.start(); // Uhr-App (Fernbedienung + Offline-Übertragung)
   CoverService.instance.run();
   MusicScanner.fixAddedDatesOnce().then((_) {
     if (AppSettings.instance.scanOnStart.value) MusicScanner.scanAllPlaylists();
@@ -124,6 +127,7 @@ class _AppShellState extends State<AppShell> {
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const WatchSyncBanner(),
             MiniPlayer(show: _tab == 0 ? PlayMode.music : (_tab == 1 ? PlayMode.book : null)),
             _BottomNav(current: _tab, onTap: _selectTab),
           ],

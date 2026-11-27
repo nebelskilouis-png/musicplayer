@@ -40,6 +40,19 @@ jobs:
       - name: APK bauen
         run: flutter build apk --release --build-number=$(( $(date +%s) / 60 ))
 
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+
+      - name: Uhr-App bauen (Wear OS)
+        id: wear
+        continue-on-error: true
+        run: |
+          cp android/app/ci-debug.keystore wear/ci-debug.keystore 2>/dev/null || true
+          echo "sdk.dir=$ANDROID_HOME" > wear/local.properties
+          gradle -p wear assembleRelease -PversionCode=$(( $(date +%s) / 60 )) --stacktrace
+          cp wear/app/build/outputs/apk/release/app-release.apk build/uhr-app.apk
+
       - name: Release veröffentlichen
         uses: softprops/action-gh-release@v2
         with:
@@ -47,4 +60,6 @@ jobs:
           name: Build ${{ github.run_number }}
           body: ${{ github.event.head_commit.message }}
           make_latest: true
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/uhr-app.apk

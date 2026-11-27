@@ -14,6 +14,7 @@ import '../services/permissions.dart';
 import 'package:permission_handler/permission_handler.dart' show openAppSettings;
 import 'file_browser_screen.dart';
 import 'pick_from_playlist_screen.dart';
+import '../services/watch_bridge.dart';
 import '../services/settings_service.dart';
 import '../theme.dart';
 import '../widgets/add_to_playlist.dart';
@@ -209,6 +210,25 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  Future<void> _syncToWatch() async {
+    final w = WatchBridge.instance;
+    if (w.sync.value?.running == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Es läuft schon eine Übertragung auf die Uhr')));
+      return;
+    }
+    if (!await w.watchConnected()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Keine Uhr verbunden. Bluetooth an? Uhr in der Wear-OS-App gekoppelt?')));
+      return;
+    }
+    await w.syncPlaylist(widget.playlistId, _name);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Übertragung gestartet. Tipp: Uhr ins WLAN/Hotspot – dann geht es viel schneller.')));
+  }
+
   /// Songs aus einer anderen Playlist übernehmen (nur Playlists ohne Ordner).
   Future<void> _addFromPlaylist() async {
     final picked = await pickSongsFromPlaylist(context, targetPlaylistId: widget.playlistId);
@@ -400,6 +420,26 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 _startReorder();
               },
             ),
+            if (Platform.isAndroid) ...[
+              SheetItem(
+                icon: Icons.watch,
+                label: 'Auf die Uhr übertragen (offline hören)',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _syncToWatch();
+                },
+              ),
+              SheetItem(
+                icon: Icons.watch_off_outlined,
+                label: 'Von der Uhr entfernen',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  WatchBridge.instance.removeFromWatch(widget.playlistId);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Playlist wird von der Uhr entfernt')));
+                },
+              ),
+            ],
             if (_hasFolder)
             SheetItem(
               icon: Icons.sync,
