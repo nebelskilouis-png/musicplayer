@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
@@ -35,6 +36,8 @@ class AudioOutputService {
       final session = await AudioSession.instance;
       await _update(session);
       session.devicesChangedEventStream.listen((_) => _update(session));
+      // Ausgang kann auch ohne Geräte-Änderung wechseln (z.B. über das System-Menü)
+      Timer.periodic(const Duration(seconds: 5), (_) => _update(session));
     } catch (e) {
       debugPrint('Audio-Ausgang nicht erkennbar: $e');
     }
@@ -43,7 +46,10 @@ class AudioOutputService {
   static OutputKind _kindOf(AudioDevice d) {
     // Typ als Text prüfen (robust gegenüber verschiedenen Paket-Versionen)
     final t = d.type.toString().toLowerCase();
-    if (t.contains('bluetooth') || t.contains('.ble')) return OutputKind.bluetooth;
+    // SCO = nur Telefonie (Freisprechen). Smartwatches und BT-Fernbedienungen melden sich oft so
+    // an, spielen aber keine Musik -> nicht als Kopfhörer zählen.
+    if (t.contains('sco') || t.contains('broadcast')) return OutputKind.unknown;
+    if (t.contains('bluetooth') || t.contains('.ble') || t.contains('hearing')) return OutputKind.bluetooth;
     if (t.contains('wired') ||
         t.contains('headset') ||
         t.contains('headphone') ||
@@ -67,13 +73,46 @@ class AudioOutputService {
         final key = '${k.name}|${d.name}';
         if (seen.add(key)) list.add(AudioOutput(k, d.name));
       }
-      devices.value = list;
-      // Bluetooth hat Vorrang, dann Kabel, sonst Lautsprecher
-      output.value = list.firstWhere((o) => o.kind == OutputKind.bluetooth,
-          orElse: () => list.firstWhere((o) => o.kind == OutputKind.wired,
-              orElse: () => const AudioOutput(OutputKind.speaker)));
+      // Am genauesten: Android fragen, wohin Medien gerade wirklich gehen (ab Android 13)
+      final real = await _realMediaOutput();
+      if (real != null && real.kind != OutputKind.speaker && !list.any((o) => o.kind == real.kind && o.name == real.name)) {
+        list.insert(0, real);
+      }
+      final next = real ??
+          // Sonst schätzen: Bluetooth hat Vorrang, dann Kabel, sonst Lautsprecher
+          list.firstWhere((o) => o.kind == OutputKind.bluetooth,
+              orElse: () => list.firstWhere((o) => o.kind == OutputKind.wired,
+                  orElse: () => const AudioOutput(OutputKind.speaker)));
+      if (!_sameList(devices.value, list)) devices.value = list;
+      if (next.kind != output.value.kind || next.name != output.value.name) output.value = next;
     } catch (e) {
       debugPrint('Audio-Ausgang: $e');
+    }
+  }
+
+  static bool _sameList(List<AudioOutput> a, List<AudioOutput> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].kind != b[i].kind || a[i].name != b[i].name) return false;
+    }
+    return true;
+  }
+
+  Future<AudioOutput?> _realMediaOutput() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final r = await _channel.invokeMethod<Map>('currentMediaOutput');
+      if (r == null) return null;
+      final kind = switch (r['kind']) {
+        'bluetooth' => OutputKind.bluetooth,
+        'wired' => OutputKind.wired,
+        'speaker' => OutputKind.speaker,
+        _ => OutputKind.unknown,
+      };
+      if (kind == OutputKind.unknown) return null;
+      return AudioOutput(kind, kind == OutputKind.speaker ? '' : ((r['name'] as String?) ?? ''));
+    } catch (_) {
+      return null;
     }
   }
 

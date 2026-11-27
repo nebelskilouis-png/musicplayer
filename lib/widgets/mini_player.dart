@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import '../services/audio_player_service.dart';
 import '../services/audiobook_service.dart';
 import '../services/cover_service.dart';
+import '../services/output_service.dart';
 import '../services/settings_service.dart';
 import '../screens/player_screen.dart';
 import '../theme.dart';
@@ -164,10 +165,31 @@ class MiniPlayer extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                           const SizedBox(height: 2),
-                          Text(subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                          // Wie bei Spotify: per Bluetooth verbunden -> Gerätename statt Künstler
+                          ValueListenableBuilder<AudioOutput>(
+                            valueListenable: AudioOutputService.instance.output,
+                            builder: (context, out, _) {
+                              if (out.kind == OutputKind.bluetooth) {
+                                return Row(
+                                  children: [
+                                    const Icon(Icons.bluetooth_audio, size: 13, color: AppColors.accentLight),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(out.name.isNotEmpty ? out.name : 'Bluetooth',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
+                                    ),
+                                  ],
+                                );
+                              }
+                              return Text(subtitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary));
+                            },
+                          ),
                         ],
                       ),
                     ),

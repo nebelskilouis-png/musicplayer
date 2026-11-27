@@ -1,6 +1,9 @@
 package com.example.musicplayer
 
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.MediaRouter2
 import android.os.Build
 import android.provider.Settings
@@ -19,6 +22,7 @@ class MainActivity : AudioServiceActivity() {
                 when (call.method) {
                     "openOutputSwitcher" -> result.success(openOutputSwitcher())
                     "openBluetoothSettings" -> result.success(openBluetoothSettings())
+                    "currentMediaOutput" -> result.success(currentMediaOutput())
                     else -> result.notImplemented()
                 }
             }
@@ -45,6 +49,38 @@ class MainActivity : AudioServiceActivity() {
             }
         }
         return if (openBluetoothSettings()) "bluetooth" else "none"
+    }
+
+    /** Wohin Musik gerade wirklich geht (Android 13+). null = unbekannt. */
+    private fun currentMediaOutput(): Map<String, String>? {
+        if (Build.VERSION.SDK_INT < 33) return null
+        return try {
+            val am = getSystemService(AUDIO_SERVICE) as AudioManager
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+            val d = am.getAudioDevicesForAttributes(attrs).firstOrNull() ?: return null
+            val kind = when (d.type) {
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                AudioDeviceInfo.TYPE_BLE_HEADSET,
+                AudioDeviceInfo.TYPE_BLE_SPEAKER,
+                AudioDeviceInfo.TYPE_HEARING_AID -> "bluetooth"
+                AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                AudioDeviceInfo.TYPE_USB_HEADSET,
+                AudioDeviceInfo.TYPE_USB_DEVICE,
+                AudioDeviceInfo.TYPE_USB_ACCESSORY,
+                AudioDeviceInfo.TYPE_LINE_ANALOG,
+                AudioDeviceInfo.TYPE_LINE_DIGITAL,
+                AudioDeviceInfo.TYPE_AUX_LINE -> "wired"
+                AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
+                else -> return null
+            }
+            mapOf("kind" to kind, "name" to (d.productName?.toString() ?: ""))
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun openBluetoothSettings(): Boolean {
