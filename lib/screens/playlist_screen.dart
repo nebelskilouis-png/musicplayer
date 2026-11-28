@@ -63,6 +63,9 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   bool _loading = true;
   bool _isScanning = false;
   bool _isReorderMode = false;
+  // Mehrfachauswahl (für Warteschlange)
+  bool _selectMode = false;
+  final Set<int> _selected = {};
 
   int? _dragSection; // Abschnitt, während am Seitenbalken gezogen wird
   double _dragY = 0;
@@ -470,6 +473,132 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     );
   }
 
+  // ---------- Mehrfachauswahl ----------
+
+  void _startSelect(int? first) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _selectMode = true;
+      _selected.clear();
+      if (first != null) _selected.add(first);
+    });
+  }
+
+  void _endSelect() => setState(() {
+        _selectMode = false;
+        _selected.clear();
+      });
+
+  void _toggleSelect(int i) {
+    HapticFeedback.selectionClick();
+    setState(() => _selected.contains(i) ? _selected.remove(i) : _selected.add(i));
+  }
+
+  /// true = alle, false = keiner, null = teilweise
+  bool? _sectionSelState(_Section s) {
+    var n = 0;
+    for (int i = s.start; i < s.start + s.count; i++) {
+      if (_selected.contains(i)) n++;
+    }
+    if (n == 0) return false;
+    return n == s.count ? true : null;
+  }
+
+  void _toggleSectionSelect(_Section s) {
+    HapticFeedback.selectionClick();
+    final all = _sectionSelState(s) == true;
+    setState(() {
+      for (int i = s.start; i < s.start + s.count; i++) {
+        all ? _selected.remove(i) : _selected.add(i);
+      }
+    });
+  }
+
+  void _toggleSelectAll() => setState(() {
+        if (_selected.length == _tracks.length) {
+          _selected.clear();
+        } else {
+          _selected.addAll(List.generate(_tracks.length, (i) => i));
+        }
+      });
+
+  Future<void> _queueSelected({required bool next}) async {
+    final idx = _selected.toList()..sort();
+    final tracks = [for (final i in idx) _tracks[i]];
+    if (tracks.isEmpty) return;
+    if (next) {
+      await _audio.playNextAll(tracks);
+    } else {
+      await _audio.addToQueueEnd(tracks);
+    }
+    if (!mounted) return;
+    _endSelect();
+    final n = tracks.length;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(next
+          ? '$n ${n == 1 ? 'Song kommt' : 'Songs kommen'} als Nächstes'
+          : '$n ${n == 1 ? 'Song' : 'Songs'} ans Ende der Warteschlange'),
+    ));
+  }
+
+  Widget _buildSelectTopBar(double topPad) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        height: topPad + 56,
+        padding: EdgeInsets.only(top: topPad),
+        color: AppColors.topBar,
+        child: Row(
+          children: [
+            IconButton(tooltip: 'Fertig', icon: const Icon(Icons.close), onPressed: _endSelect),
+            Expanded(
+              child: Text('${_selected.length} ausgewählt',
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            ),
+            TextButton(
+              onPressed: _toggleSelectAll,
+              child: Text(_selected.length == _tracks.length ? 'Keine' : 'Alle'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectBottomBar() {
+    final has = _selected.isNotEmpty;
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        color: AppColors.topBar,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: has ? () => _queueSelected(next: true) : null,
+                icon: const Icon(Icons.queue_play_next),
+                label: const Text('Als Nächstes'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: has ? () => _queueSelected(next: false) : null,
+                icon: const Icon(Icons.playlist_add),
+                label: const Text('Ans Ende'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showSongOptions(int index) {
     final t = _tracks[index];
     final hasSection = ((_tracksData[index]['section_name'] as String?) ?? '').trim().isNotEmpty;
@@ -483,6 +612,14 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
             SheetHeader(
                 coverPath: CoverService.instance.pathFor(t) ?? _coverPath, title: t.title, subtitle: t.artist),
             const Divider(height: 1),
+            SheetItem(
+              icon: Icons.checklist,
+              label: 'Mehrere auswählen (zur Warteschlange)',
+              onTap: () {
+                Navigator.pop(ctx);
+                _startSelect(index);
+              },
+            ),
             Builder(builder: (_) {
               final fav = AppSettings.instance.isFavorite(t.id);
               return SheetItem(
@@ -576,7 +713,12 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     final topPad = MediaQuery.of(context).padding.top;
     final empty = _tracks.isEmpty;
 
-    return Scaffold(
+    return PopScope(
+      canPop: !_selectMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectMode) _endSelect();
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -604,12 +746,13 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     return _buildTrackRow(i - 1);
                   },
                 ),
-                _buildTopBar(topPad),
+                _selectMode ? _buildSelectTopBar(topPad) : _buildTopBar(topPad),
                 if (_showRail) _buildSectionRail(topPad),
                 if (_dragSection != null) _buildDragBubble(),
-                _buildJumpButtons(),
+                if (_selectMode) _buildSelectBottomBar() else _buildJumpButtons(),
               ],
             ),
+    ),
     );
   }
 
@@ -867,12 +1010,17 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
           ? AppColors.accent.withValues(alpha: 0.35)
           : Colors.transparent,
       child: InkWell(
-      onTap: () => _playTrack(i),
-      onLongPress: () => _showSongOptions(i),
+      onTap: () => _selectMode ? _toggleSelect(i) : _playTrack(i),
+      onLongPress: () => _selectMode ? _toggleSelect(i) : _showSongOptions(i),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(showNumbers ? 8 : 16, 6, _showRail ? _railWidth : 4, 6),
+        padding: EdgeInsets.fromLTRB(showNumbers || _selectMode ? 8 : 16, 6, _showRail ? _railWidth : 4, 6),
         child: Row(
           children: [
+            if (_selectMode)
+              Checkbox(
+                value: _selected.contains(i),
+                onChanged: (_) => _toggleSelect(i),
+              ),
             if (showNumbers)
               SizedBox(
                 width: numWidth,
@@ -931,24 +1079,36 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 child: Text(formatDuration(Duration(milliseconds: t.durationMs)),
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
               ),
-            IconButton(
-              tooltip: 'Optionen',
-              icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 20),
-              onPressed: () => _showSongOptions(i),
-            ),
+            if (!_selectMode)
+              IconButton(
+                tooltip: 'Optionen',
+                icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 20),
+                onPressed: () => _showSongOptions(i),
+              )
+            else
+              const SizedBox(width: 12),
           ],
         ),
       ),
     ));
 
     if (section == null) return row;
+    final secState = _selectMode ? _sectionSelState(section) : false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(16, 28, _showRail ? _railWidth + 4 : 16, 6),
+        InkWell(
+          onTap: _selectMode ? () => _toggleSectionSelect(section) : null,
+          child: Padding(
+          padding: EdgeInsets.fromLTRB(_selectMode ? 8 : 16, 28, _showRail ? _railWidth + 4 : 16, 6),
           child: Row(
             children: [
+              if (_selectMode)
+                Checkbox(
+                  tristate: true,
+                  value: secState,
+                  onChanged: (_) => _toggleSectionSelect(section),
+                ),
               Container(
                 width: 4,
                 height: 22,
@@ -961,10 +1121,11 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
               ),
-              Text('${section.count} Songs',
+              Text(_selectMode ? 'ganzer Abschnitt • ${section.count}' : '${section.count} Songs',
                   style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
             ],
           ),
+        ),
         ),
         row,
       ],

@@ -403,6 +403,28 @@ class AudioPlayerService {
     _notify();
   }
 
+  /// Mehrere Songs direkt nach dem aktuellen Song einreihen (Reihenfolge bleibt).
+  Future<void> playNextAll(List<Track> tracks) async {
+    if (tracks.isEmpty) return;
+    if (currentTrack == null) {
+      await playPlaylist(tracks, 0, playlistName: 'Warteschlange');
+      return;
+    }
+    currentQueue.insertAll(currentIndex + 1, tracks);
+    _notify();
+  }
+
+  /// Mehrere Songs ans Ende der Warteschlange.
+  Future<void> addToQueueEnd(List<Track> tracks) async {
+    if (tracks.isEmpty) return;
+    if (currentTrack == null) {
+      await playPlaylist(tracks, 0, playlistName: 'Warteschlange');
+      return;
+    }
+    currentQueue.addAll(tracks);
+    _notify();
+  }
+
   void removeFromQueue(int index) {
     if (index < 0 || index >= currentQueue.length || index == currentIndex) return;
     currentQueue.removeAt(index);
